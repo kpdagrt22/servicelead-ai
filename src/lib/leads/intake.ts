@@ -396,7 +396,7 @@ export async function processIntake(
   const { data: current } = await supabase
     .from("leads")
     .select(
-      "customer_name, customer_email, service_needed, urgency, address, preferred_time",
+      "customer_name, customer_email, service_needed, urgency, address, city, state, postal_code, preferred_time",
     )
     .eq("id", leadId)
     .single();
@@ -413,6 +413,9 @@ export async function processIntake(
   fillIfEmpty("service_needed", f.service_needed);
   fillIfEmpty("urgency", f.urgency);
   fillIfEmpty("address", f.address);
+  fillIfEmpty("city", f.city);
+  fillIfEmpty("state", f.state);
+  fillIfEmpty("postal_code", f.postal_code);
   fillIfEmpty("preferred_time", f.preferred_time);
 
   await supabase.from("leads").update(patch).eq("id", leadId);
@@ -460,6 +463,7 @@ export async function processIntake(
       address: (patch.address as string) ?? f.address ?? null,
       summary: ai.owner_summary,
       recommendedNextStep: recommendedNextStep(f.urgency ?? null),
+      riskFlags: ai.risk_flags,
     });
     ownerNotified = res.delivered;
   }

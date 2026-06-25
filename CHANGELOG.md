@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Alpha validation readiness**: env hardening (`scripts/verify-env.ts` +
+  `npm run verify:env`, canonical `FROM_EMAIL` / `NEXT_PUBLIC_STRIPE_PRICE_*` /
+  `ADMIN_EMAILS`); centralized authorization helpers
+  (`src/lib/auth/organizations.ts`); `spam`/`archived` lead statuses + status
+  helpers (migration `0005`); lead list filters (urgency/source/search/sort);
+  service-category edit + quick-add + empty states; AI `city`/`state`/
+  `postal_code` extraction; soft usage limits (`src/lib/billing/usage.ts`);
+  risk flags in owner emails; protected internal `/app/admin` (ADMIN_EMAILS);
+  expanded dashboard metrics + CTA cards. New docs: `SERVICELEAD_ALPHA_AUDIT`,
+  `FINAL_SERVICELEAD_ALPHA_AUDIT`, `SUPABASE_SETUP`, `DEMO_SCRIPT`, and expanded
+  `VALIDATION_PLAN` / `COMPLIANCE` / `DEPLOYMENT`. New tests: usage, validation,
+  ownership, expanded status (56 total).
 - Continuous Integration (GitHub Actions): typecheck, lint, test, and build on
   every push/PR to `main`.
 - Integration tests for the `processIntake` orchestration using an in-memory

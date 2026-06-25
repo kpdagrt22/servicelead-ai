@@ -1,6 +1,7 @@
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { QuestionsEditor } from "@/components/app/questions-editor";
+import { DEFAULT_SERVICE_CATEGORIES } from "@/lib/constants";
 import { env } from "@/lib/env";
 import type {
   IntakeQuestion,
@@ -10,6 +11,7 @@ import type {
 import {
   addServiceCategoryAction,
   deleteServiceCategoryAction,
+  editServiceCategoryAction,
   toggleServiceCategoryAction,
 } from "./actions";
 
@@ -37,6 +39,11 @@ export default async function IntakePage() {
     tmpls.find((t) => t.service_category_id === categoryId);
 
   const publicUrl = `${env.app.url}/u/${ctx.organization.slug}`;
+
+  const existingNames = new Set(cats.map((c) => c.name.toLowerCase()));
+  const missingDefaults = DEFAULT_SERVICE_CATEGORIES.filter(
+    (d) => !existingNames.has(d.name.toLowerCase()),
+  );
 
   return (
     <div className="space-y-8">
@@ -72,6 +79,28 @@ export default async function IntakePage() {
             Add
           </button>
         </form>
+
+        {missingDefaults.length > 0 && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-400">
+              Quick add common services
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {missingDefaults.map((d) => (
+                <form key={d.name} action={addServiceCategoryAction}>
+                  <input type="hidden" name="name" value={d.name} />
+                  <input type="hidden" name="description" value={d.description} />
+                  <button
+                    type="submit"
+                    className="rounded-full border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    + {d.name}
+                  </button>
+                </form>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Categories + questions */}
@@ -118,6 +147,43 @@ export default async function IntakePage() {
                 </div>
               </div>
 
+              {/* Inline edit */}
+              <details className="mt-3 text-sm">
+                <summary className="cursor-pointer text-xs font-medium text-brand-600">
+                  Edit name / description
+                </summary>
+                <form
+                  action={editServiceCategoryAction}
+                  className="mt-2 flex flex-wrap gap-2"
+                >
+                  <input type="hidden" name="id" value={cat.id} />
+                  <input
+                    name="name"
+                    className="input flex-1"
+                    defaultValue={cat.name}
+                    required
+                  />
+                  <input
+                    name="description"
+                    className="input flex-1"
+                    defaultValue={cat.description ?? ""}
+                    placeholder="Short description (optional)"
+                  />
+                  <button type="submit" className="btn-secondary text-sm">
+                    Save
+                  </button>
+                </form>
+              </details>
+
+              {cat.active &&
+                tmpl &&
+                ((tmpl.questions as IntakeQuestion[]) ?? []).length === 0 && (
+                  <p className="mt-3 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                    This category is active but has no intake questions. Add at
+                    least one so the AI knows what to ask.
+                  </p>
+                )}
+
               {tmpl ? (
                 <div className="mt-4 border-t border-gray-100 pt-4">
                   <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
@@ -137,9 +203,14 @@ export default async function IntakePage() {
           );
         })}
         {cats.length === 0 && (
-          <p className="text-sm text-gray-500">
-            No service categories yet — add one above.
-          </p>
+          <div className="card p-8 text-center">
+            <p className="font-semibold text-gray-800">No services yet</p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">
+              Add your common services so ServiceLead AI knows what to ask
+              customers. Use the quick-add buttons above to get started in
+              seconds.
+            </p>
+          </div>
         )}
       </div>
     </div>

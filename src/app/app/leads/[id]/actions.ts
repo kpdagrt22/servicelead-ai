@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/auth";
+import { assertLeadBelongsToOrg } from "@/lib/auth/organizations";
 import { canTransition } from "@/lib/leads/status";
 import { isLeadStatus } from "@/lib/leads/status";
 import { sendOwnerLeadEmail } from "@/lib/email/resend";
@@ -20,15 +21,14 @@ async function loadOwnedLead(leadId: string): Promise<{
 }> {
   const ctx = await requireOrg();
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    .eq("id", leadId)
-    .eq("organization_id", ctx.organization.id)
-    .single();
-  if (error || !data) throw new Error("Lead not found");
+  // Explicit ownership assertion (defense-in-depth on top of RLS).
+  const lead = (await assertLeadBelongsToOrg(
+    leadId,
+    ctx.organization.id,
+    supabase,
+  )) as unknown as Lead;
   return {
-    lead: data as Lead,
+    lead,
     orgId: ctx.organization.id,
     notificationEmail: ctx.organization.notification_email,
     businessName: ctx.organization.name,

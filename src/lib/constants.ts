@@ -10,6 +10,8 @@ export const LEAD_STATUSES = [
   "booked",
   "won",
   "lost",
+  "spam",
+  "archived",
 ] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
@@ -19,6 +21,8 @@ export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   booked: "Booked",
   won: "Won",
   lost: "Lost",
+  spam: "Spam",
+  archived: "Archived",
 };
 
 export const LEAD_SOURCES = [
@@ -108,6 +112,9 @@ export const DEFAULT_SERVICE_CATEGORIES = [
   { name: "Cleaning quote", description: "Home/office cleaning estimates" },
   { name: "Pest control", description: "Inspections and treatments" },
   { name: "Salon booking", description: "Appointment requests and availability" },
+  { name: "Auto repair", description: "Diagnostics, brakes, engine, maintenance" },
+  { name: "Auto detailing", description: "Interior/exterior detail, wash, ceramic" },
+  { name: "Handyman service", description: "Small repairs, installs, odd jobs" },
   { name: "Custom", description: "General service inquiry" },
 ] as const;
 

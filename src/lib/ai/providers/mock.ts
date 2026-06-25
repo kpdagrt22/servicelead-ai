@@ -49,6 +49,11 @@ function extractFields(ctx: IntakeContext): ExtractedFields {
     fields.address = streetLine?.trim() ?? (zip ? zip : null);
   }
 
+  // Postal code: pull a standalone ZIP if present.
+  if (!fields.postal_code) {
+    fields.postal_code = text.match(ZIP_RE)?.[0] ?? null;
+  }
+
   // Service needed: use the first inbound line if not already known, matched
   // against configured categories when possible.
   if (!fields.service_needed && text.trim()) {

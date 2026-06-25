@@ -27,7 +27,11 @@ const SCENARIOS = [
   },
 ] as const;
 
-export function SimulatorForm() {
+export function SimulatorForm({
+  serviceOptions = [],
+}: {
+  serviceOptions?: string[];
+}) {
   const [scenario, setScenario] =
     useState<(typeof SCENARIOS)[number]["id"]>("missed_call");
   const [pending, setPending] = useState(false);
@@ -75,6 +79,20 @@ export function SimulatorForm() {
           />
         </div>
       </div>
+
+      {serviceOptions.length > 0 && (
+        <div>
+          <label className="label">Service category (optional)</label>
+          <select name="service" className="input" defaultValue="">
+            <option value="">Let AI infer from the message</option>
+            {serviceOptions.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div>
         <label className="label">

@@ -4,6 +4,7 @@ import { ConfigNotice } from "@/components/config-notice";
 import { CheckoutButton } from "@/components/app/checkout-button";
 import { isStripeConfigured } from "@/lib/env";
 import { PLANS, SETUP_FEE } from "@/lib/constants";
+import { getUsageSummary } from "@/lib/billing/usage";
 import type { Subscription } from "@/types/database";
 
 export const metadata = { title: "Billing — ServiceLead AI" };
@@ -18,11 +19,14 @@ export default async function BillingPage({
   const configured = isStripeConfigured();
   const supabase = await createClient();
 
-  const { data: sub } = await supabase
-    .from("subscriptions")
-    .select("*")
-    .eq("organization_id", ctx.organization.id)
-    .maybeSingle();
+  const [{ data: sub }, usage] = await Promise.all([
+    supabase
+      .from("subscriptions")
+      .select("*")
+      .eq("organization_id", ctx.organization.id)
+      .maybeSingle(),
+    getUsageSummary(supabase, ctx.organization.id),
+  ]);
   const subscription = sub as Subscription | null;
 
   return (
@@ -74,6 +78,29 @@ export default async function BillingPage({
           )}
         </div>
       )}
+
+      {/* Usage this month */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">Leads recovered this month</p>
+          <p className="text-sm text-gray-500">
+            {usage.leads.used} / {usage.leads.limit}
+            {usage.isTrial ? " (trial)" : ""}
+          </p>
+        </div>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full ${usage.leads.withinLimit ? "bg-brand-500" : "bg-red-500"}`}
+            style={{ width: `${usage.leads.percentUsed}%` }}
+          />
+        </div>
+        {!usage.leads.withinLimit && (
+          <p className="mt-2 text-xs text-amber-700">
+            You've reached your plan's lead limit. We keep capturing leads so you
+            never miss one — upgrade to lift the cap.
+          </p>
+        )}
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {PLANS.map((plan) => (

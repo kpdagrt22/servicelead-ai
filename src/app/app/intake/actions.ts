@@ -20,6 +20,24 @@ export async function addServiceCategoryAction(formData: FormData) {
   if (!parsed.success) return;
 
   const supabase = await createClient();
+
+  // Avoid duplicate categories by name within the org (case-insensitive).
+  const { data: existing } = await supabase
+    .from("service_categories")
+    .select("id")
+    .eq("organization_id", ctx.organization.id)
+    .ilike("name", parsed.data.name)
+    .maybeSingle();
+  if (existing) {
+    // Re-activate instead of creating a duplicate.
+    await supabase
+      .from("service_categories")
+      .update({ active: true })
+      .eq("id", existing.id);
+    revalidatePath("/app/intake");
+    return;
+  }
+
   const { data: cat } = await supabase
     .from("service_categories")
     .insert({
@@ -63,6 +81,28 @@ export async function deleteServiceCategoryAction(formData: FormData) {
   await supabase
     .from("service_categories")
     .delete()
+    .eq("id", id)
+    .eq("organization_id", ctx.organization.id);
+  revalidatePath("/app/intake");
+}
+
+export async function editServiceCategoryAction(formData: FormData) {
+  const ctx = await requireOrg();
+  const id = String(formData.get("id"));
+  const parsed = serviceCategorySchema
+    .pick({ name: true, description: true })
+    .safeParse({
+      name: formData.get("name"),
+      description: formData.get("description") ?? "",
+    });
+  if (!parsed.success) return;
+  const supabase = await createClient();
+  await supabase
+    .from("service_categories")
+    .update({
+      name: parsed.data.name,
+      description: parsed.data.description || null,
+    })
     .eq("id", id)
     .eq("organization_id", ctx.organization.id);
   revalidatePath("/app/intake");

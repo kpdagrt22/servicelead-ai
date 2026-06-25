@@ -29,11 +29,13 @@ export async function runSimulationAction(formData: FormData) {
     scenario: formData.get("scenario"),
     customerName: formData.get("customerName") ?? "",
     customerPhone: formData.get("customerPhone"),
+    service: formData.get("service") ?? "",
     message: formData.get("message") ?? "",
   });
   if (!parsed.success) return;
 
-  const { scenario, customerName, customerPhone, message } = parsed.data;
+  const { scenario, customerName, customerPhone, service, message } =
+    parsed.data;
 
   const sourceMap: Record<string, LeadSource> = {
     missed_call: "missed_call",
@@ -59,6 +61,7 @@ export async function runSimulationAction(formData: FormData) {
     },
     // A bare missed call has no message yet; SMS/web include the text.
     inboundBody: scenario === "missed_call" ? null : message || null,
+    knownFields: service ? { service_needed: service } : undefined,
     consent: { status: "inbound_initiated", source: `simulator:${scenario}` },
   });
 

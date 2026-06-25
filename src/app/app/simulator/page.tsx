@@ -1,4 +1,5 @@
 import { requireOrg } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { SimulatorForm } from "@/components/app/simulator-form";
 import {
   isRealAiConfigured,
@@ -9,7 +10,15 @@ import { env } from "@/lib/env";
 export const metadata = { title: "Simulator — ServiceLead AI" };
 
 export default async function SimulatorPage() {
-  await requireOrg();
+  const ctx = await requireOrg();
+  const supabase = await createClient();
+  const { data: cats } = await supabase
+    .from("service_categories")
+    .select("name")
+    .eq("organization_id", ctx.organization.id)
+    .eq("active", true)
+    .order("name", { ascending: true });
+  const serviceOptions = (cats ?? []).map((c) => c.name as string);
 
   return (
     <div className="space-y-6">
@@ -22,7 +31,7 @@ export default async function SimulatorPage() {
       </div>
 
       <div className="card p-6">
-        <SimulatorForm />
+        <SimulatorForm serviceOptions={serviceOptions} />
       </div>
 
       <div className="card p-5 text-sm text-gray-600">

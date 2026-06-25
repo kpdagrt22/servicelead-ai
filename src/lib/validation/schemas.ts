@@ -53,7 +53,8 @@ export const simulatorSchema = z.object({
   scenario: z.enum(["missed_call", "sms", "web_form"]),
   customerName: z.string().optional().or(z.literal("")),
   customerPhone: z.string().min(7, "Phone number required"),
-  message: z.string().optional().or(z.literal("")),
+  service: z.string().max(120).optional().or(z.literal("")),
+  message: z.string().max(2000).optional().or(z.literal("")),
 });
 export type SimulatorInput = z.infer<typeof simulatorSchema>;
 

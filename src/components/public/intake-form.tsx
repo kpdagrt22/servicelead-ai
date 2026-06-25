@@ -80,18 +80,26 @@ export function PublicIntakeForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">What do you need? *</label>
-          <input
-            name="serviceNeeded"
-            className="input"
-            list="service-options"
-            placeholder="e.g. Water heater repair"
-            required
-          />
-          <datalist id="service-options">
-            {serviceOptions.map((s) => (
-              <option key={s} value={s} />
-            ))}
-          </datalist>
+          {serviceOptions.length > 0 ? (
+            <select name="serviceNeeded" className="input" required defaultValue="">
+              <option value="" disabled>
+                Select a service…
+              </option>
+              {serviceOptions.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+              <option value="Other / not sure">Other / not sure</option>
+            </select>
+          ) : (
+            <input
+              name="serviceNeeded"
+              className="input"
+              placeholder="e.g. Water heater repair"
+              required
+            />
+          )}
         </div>
         <div>
           <label className="label">How urgent?</label>

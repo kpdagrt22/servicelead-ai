@@ -18,6 +18,7 @@ export interface OwnerLeadEmail {
   address: string | null;
   summary: string;
   recommendedNextStep: string;
+  riskFlags?: string[];
 }
 
 export interface SendEmailResult {
@@ -41,6 +42,11 @@ function renderHtml(p: OwnerLeadEmail): string {
       ${row("Address", p.address)}
     </table>
     <pre style="background:#f6f8f7;padding:12px;border-radius:8px;white-space:pre-wrap;font-family:inherit">${escapeHtml(p.summary)}</pre>
+    ${
+      p.riskFlags && p.riskFlags.length > 0
+        ? `<p style="background:#fef2f2;color:#b91c1c;padding:10px;border-radius:8px;font-size:13px"><strong>⚠ Review:</strong> ${p.riskFlags.map(escapeHtml).join(", ")}</p>`
+        : ""
+    }
     <p style="font-weight:600">Recommended next step: ${escapeHtml(p.recommendedNextStep)}</p>
     <a href="${leadUrl}" style="display:inline-block;background:#16b364;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">View lead</a>
     <p style="color:#999;font-size:12px;margin-top:24px">You're receiving this because you enabled lead notifications in ServiceLead AI.</p>
