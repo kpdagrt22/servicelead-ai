@@ -26,19 +26,36 @@ export default async function DashboardPage() {
   const orgId = ctx.organization.id;
   const supabase = await createClient();
 
+  const todayIso = startOfToday();
+  const leadCount = () =>
+    supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId);
+
+  // Metrics are computed with exact COUNT queries (not a bounded slice) so they
+  // stay correct past 200 leads.
   const [
-    { data: leads },
+    { count: total },
+    { count: newToday },
+    { count: urgent },
+    { count: recovered },
+    { count: contacted },
+    { count: won },
     { count: openConversations },
     { count: bookedAppointments },
     leadsThisMonth,
     aiSummariesThisMonth,
+    { data: recentRows },
   ] = await Promise.all([
-    supabase
-      .from("leads")
-      .select("*")
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false })
-      .limit(200),
+    leadCount(),
+    leadCount().gte("created_at", todayIso),
+    leadCount()
+      .in("urgency", ["emergency", "high"])
+      .not("status", "in", "(won,lost,archived,spam)"),
+    leadCount().eq("source", "missed_call"),
+    leadCount().neq("status", "new"),
+    leadCount().eq("status", "won"),
     supabase
       .from("conversations")
       .select("id", { count: "exact", head: true })
@@ -50,26 +67,33 @@ export default async function DashboardPage() {
       .eq("organization_id", orgId),
     getMonthlyLeadCount(supabase, orgId),
     getMonthlyAiSummaryCount(supabase, orgId),
+    supabase
+      .from("leads")
+      .select("*")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(60),
   ]);
 
-  const all = (leads ?? []) as Lead[];
-  const todayIso = startOfToday();
-  const newToday = all.filter((l) => l.created_at >= todayIso).length;
-  const recovered = all.filter((l) => l.source === "missed_call").length;
-  const urgent = all.filter(
-    (l) =>
-      (l.urgency === "emergency" || l.urgency === "high") &&
-      l.status !== "won" &&
-      l.status !== "lost" &&
-      l.status !== "archived" &&
-      l.status !== "spam",
-  ).length;
-  const contacted = all.filter((l) => l.status !== "new").length;
-  const responseRate =
-    all.length > 0 ? Math.round((contacted / all.length) * 100) : 0;
+  // Exact per-column counts for the board headers.
+  const boardCountsArr = await Promise.all(
+    BOARD_COLUMNS.map((s) =>
+      leadCount().eq("status", s).then((r) => r.count ?? 0),
+    ),
+  );
+  const boardCountByStatus = Object.fromEntries(
+    BOARD_COLUMNS.map((s, i) => [s, boardCountsArr[i]]),
+  ) as Record<string, number>;
 
-  const byStatus = (status: string) => all.filter((l) => l.status === status);
-  const recent = all.slice(0, 8);
+  const totalLeads = total ?? 0;
+  const contactedN = contacted ?? 0;
+  const responseRate =
+    totalLeads > 0 ? Math.round((contactedN / totalLeads) * 100) : 0;
+
+  const recentAll = (recentRows ?? []) as Lead[];
+  const recent = recentAll.slice(0, 8);
+  const byStatus = (status: string) =>
+    recentAll.filter((l) => l.status === status);
   const publicUrl = `${env.app.url}/u/${ctx.organization.slug}`;
 
   return (
@@ -78,7 +102,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <p className="text-sm text-gray-500">
-            {ctx.organization.name} · {all.length} total leads
+            {ctx.organization.name} · {totalLeads} total leads
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -93,14 +117,14 @@ export default async function DashboardPage() {
 
       {/* Metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="New leads today" value={newToday} accent />
-        <StatCard label="Urgent leads" value={urgent} />
+        <StatCard label="New leads today" value={newToday ?? 0} accent />
+        <StatCard label="Urgent leads" value={urgent ?? 0} />
         <StatCard label="Open conversations" value={openConversations ?? 0} />
-        <StatCard label="Missed-call recovered" value={recovered} />
+        <StatCard label="Missed-call recovered" value={recovered ?? 0} />
         <StatCard label="Leads this month" value={leadsThisMonth} />
         <StatCard label="AI summaries this month" value={aiSummariesThisMonth} />
         <StatCard label="Booked appointments" value={bookedAppointments ?? 0} />
-        <StatCard label="Total leads" value={all.length} />
+        <StatCard label="Total leads" value={totalLeads} />
       </div>
 
       {/* CTA cards */}
@@ -129,17 +153,17 @@ export default async function DashboardPage() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="card p-5">
-          <p className="text-sm text-gray-500">Avg first response</p>
-          <p className="mt-1 text-2xl font-bold text-brand-600">Instant</p>
+          <p className="text-sm text-gray-500">Leads won</p>
+          <p className="mt-1 text-2xl font-bold text-brand-600">{won ?? 0}</p>
           <p className="text-xs text-gray-400">
-            AI auto-replies the moment a lead comes in.
+            Leads you marked as won.
           </p>
         </div>
         <div className="card p-5">
           <p className="text-sm text-gray-500">Leads contacted</p>
           <p className="mt-1 text-2xl font-bold">{responseRate}%</p>
           <p className="text-xs text-gray-400">
-            {contacted} of {all.length} leads moved past “new”.
+            {contactedN} of {totalLeads} leads moved past “new”.
           </p>
         </div>
       </div>
@@ -155,7 +179,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
                   <StatusBadge status={status} />
                   <span className="text-xs font-medium text-gray-400">
-                    {items.length}
+                    {boardCountByStatus[status] ?? 0}
                   </span>
                 </div>
                 <div className="flex-1 space-y-2 p-3">

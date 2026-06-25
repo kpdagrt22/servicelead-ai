@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
+import { MarketingMobileNav } from "@/components/marketing/mobile-nav";
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -14,7 +15,7 @@ export function Logo({ className }: { className?: string }) {
 
 export function SiteHeader() {
   return (
-    <header className="border-b border-gray-200 bg-white/80 backdrop-blur">
+    <header className="relative border-b border-gray-200 bg-white/80 backdrop-blur">
       <div className="container-page flex h-16 items-center justify-between">
         <Logo />
         <nav className="hidden items-center gap-6 text-sm font-medium text-gray-600 md:flex">
@@ -32,12 +33,19 @@ export function SiteHeader() {
           </a>
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-gray-900">
+          <Link
+            href="/login"
+            className="hidden text-sm font-medium text-gray-700 hover:text-gray-900 sm:inline"
+          >
             Log in
           </Link>
-          <Link href="/signup" className="btn-primary">
+          <Link href="/signup" className="btn-primary hidden sm:inline-flex">
             Set Up Missed Call Recovery
           </Link>
+          <Link href="/signup" className="btn-primary sm:hidden">
+            Get started
+          </Link>
+          <MarketingMobileNav />
         </div>
       </div>
     </header>

@@ -2,6 +2,7 @@ import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { ConfigNotice } from "@/components/config-notice";
 import { CheckoutButton } from "@/components/app/checkout-button";
+import { ManageBillingButton } from "@/components/app/manage-billing-button";
 import { isStripeConfigured } from "@/lib/env";
 import { PLANS, SETUP_FEE } from "@/lib/constants";
 import { getUsageSummary } from "@/lib/billing/usage";
@@ -75,6 +76,11 @@ export default async function BillingPage({
               Renews{" "}
               {new Date(subscription.current_period_end).toLocaleDateString()}
             </p>
+          )}
+          {configured && subscription.stripe_customer_id && (
+            <div className="mt-4">
+              <ManageBillingButton />
+            </div>
           )}
         </div>
       )}

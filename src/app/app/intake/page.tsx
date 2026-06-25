@@ -1,6 +1,7 @@
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { QuestionsEditor } from "@/components/app/questions-editor";
+import { ConfirmSubmitButton } from "@/components/app/confirm-submit-button";
 import { DEFAULT_SERVICE_CATEGORIES } from "@/lib/constants";
 import { env } from "@/lib/env";
 import type {
@@ -137,12 +138,12 @@ export default async function IntakePage() {
                   </form>
                   <form action={deleteServiceCategoryAction}>
                     <input type="hidden" name="id" value={cat.id} />
-                    <button
-                      type="submit"
+                    <ConfirmSubmitButton
+                      message={`Delete "${cat.name}"? This removes the category and its intake questions and can't be undone.`}
                       className="btn-ghost text-xs text-red-500 hover:bg-red-50"
                     >
                       Delete
-                    </button>
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </div>

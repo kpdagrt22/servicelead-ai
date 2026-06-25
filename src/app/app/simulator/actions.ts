@@ -23,7 +23,7 @@ function getWriteClient() {
 
 export async function runSimulationAction(formData: FormData) {
   const ctx = await requireOrg();
-  if (!isSupabaseConfigured()) return;
+  if (!isSupabaseConfigured()) redirect("/app/simulator?error=not_configured");
 
   const parsed = simulatorSchema.safeParse({
     scenario: formData.get("scenario"),
@@ -32,7 +32,11 @@ export async function runSimulationAction(formData: FormData) {
     service: formData.get("service") ?? "",
     message: formData.get("message") ?? "",
   });
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    redirect(
+      `/app/simulator?error=invalid&msg=${encodeURIComponent(parsed.error.issues[0]?.message ?? "Invalid input")}`,
+    );
+  }
 
   const { scenario, customerName, customerPhone, service, message } =
     parsed.data;

@@ -9,8 +9,13 @@ import { env } from "@/lib/env";
 
 export const metadata = { title: "Simulator — ServiceLead AI" };
 
-export default async function SimulatorPage() {
+export default async function SimulatorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; msg?: string }>;
+}) {
   const ctx = await requireOrg();
+  const { error, msg } = await searchParams;
   const supabase = await createClient();
   const { data: cats } = await supabase
     .from("service_categories")
@@ -29,6 +34,14 @@ export default async function SimulatorPage() {
           connecting any real telephony.
         </p>
       </div>
+
+      {error && (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {error === "not_configured"
+            ? "Supabase isn't configured yet, so the simulator can't run."
+            : (msg ?? "Could not run the simulation. Check the inputs and try again.")}
+        </p>
+      )}
 
       <div className="card p-6">
         <SimulatorForm serviceOptions={serviceOptions} />

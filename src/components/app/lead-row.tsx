@@ -17,7 +17,9 @@ export function LeadRow({ lead }: { lead: Lead }) {
           {lead.service_needed || "Service request"}
         </p>
       </div>
-      <div className="hidden items-center gap-2 sm:flex">
+      {/* Triage signals (urgency + score) stay visible on mobile — they're
+          exactly what an owner needs to decide who to call back first. */}
+      <div className="flex items-center gap-2">
         <UrgencyBadge urgency={lead.urgency} />
         <ScoreBadge score={lead.lead_score} />
       </div>

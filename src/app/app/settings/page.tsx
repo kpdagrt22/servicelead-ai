@@ -20,9 +20,26 @@ function StatusDot({ on }: { on: boolean }) {
   );
 }
 
-export default async function SettingsPage() {
+const NUMBER_ERRORS: Record<string, string> = {
+  invalid: "That doesn't look like a valid phone number.",
+  taken: "That number is already registered to another account.",
+  already_yours: "You've already registered that number.",
+  failed: "Could not register the number. Please try again.",
+};
+
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    saved?: string;
+    numberAdded?: string;
+    numberError?: string;
+    error?: string;
+  }>;
+}) {
   const ctx = await requireOrg();
   const org = ctx.organization;
+  const sp = await searchParams;
   const supabase = await createClient();
   const { data: numbers } = await supabase
     .from("twilio_numbers")
@@ -35,6 +52,27 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      {sp.saved && (
+        <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">
+          ✅ Settings saved.
+        </p>
+      )}
+      {sp.numberAdded && (
+        <p className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800">
+          ✅ Number registered for inbound routing.
+        </p>
+      )}
+      {sp.numberError && (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {NUMBER_ERRORS[sp.numberError] ?? "Could not register the number."}
+        </p>
+      )}
+      {sp.error && (
+        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          Please check the form and try again.
+        </p>
+      )}
 
       {/* Integration status */}
       <section className="card p-5">
