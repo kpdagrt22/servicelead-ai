@@ -197,11 +197,17 @@ export default async function DashboardPage() {
                       </p>
                     </Link>
                   ))}
-                  {items.length === 0 && (
-                    <p className="py-4 text-center text-xs text-gray-300">
-                      No {LEAD_STATUS_LABELS[status].toLowerCase()} leads
-                    </p>
-                  )}
+                  {items.length === 0 &&
+                    ((boardCountByStatus[status] ?? 0) > 0 ? (
+                      <p className="py-4 text-center text-xs text-gray-400">
+                        {boardCountByStatus[status]}{" "}
+                        {LEAD_STATUS_LABELS[status].toLowerCase()} — view all
+                      </p>
+                    ) : (
+                      <p className="py-4 text-center text-xs text-gray-300">
+                        No {LEAD_STATUS_LABELS[status].toLowerCase()} leads
+                      </p>
+                    ))}
                 </div>
               </div>
             );

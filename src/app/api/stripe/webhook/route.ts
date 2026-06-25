@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
-import { alreadyProcessed } from "@/lib/webhooks/idempotency";
+import {
+  isWebhookProcessed,
+  markWebhookProcessed,
+} from "@/lib/webhooks/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +48,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Idempotency: Stripe redelivers events; a duplicate is a no-op (T-07).
-  if (await alreadyProcessed(supabase, event.id, "stripe", event.type)) {
+  // Idempotency CHECK (T-07). Stripe redelivers events; an already-processed
+  // event is a no-op. We MARK only after the handler succeeds, so a handler
+  // error (500) is retried by Stripe rather than being permanently skipped.
+  if (await isWebhookProcessed(supabase, event.id, "stripe")) {
     return NextResponse.json({ received: true, duplicate: true });
   }
 
@@ -132,5 +137,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse("handler error", { status: 500 });
   }
 
+  // Mark processed only after the handler succeeded (T-07).
+  await markWebhookProcessed(supabase, event.id, "stripe", event.type);
   return NextResponse.json({ received: true });
 }

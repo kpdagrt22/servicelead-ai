@@ -2,8 +2,10 @@
 -- ServiceLead AI — uniqueness & index hardening
 -- ════════════════════════════════════════════════════════════════════════════
 -- Additive and safe. De-duplicates defensively (keeping the newest row) BEFORE
--- adding each unique constraint, mirroring 0004. No destructive column changes.
--- Apply after 0005.
+-- adding each unique constraint, mirroring 0004. No columns are dropped or
+-- retyped. NOTE: it does perform two in-place data normalizations — phone
+-- numbers are rewritten to E.164 (NANP) and duplicate categories are merged
+-- (dependent templates re-pointed first) — both non-destructive. Apply after 0005.
 --
 -- Covers:
 --   T-01  unique(twilio_numbers.phone_number)  — stop cross-tenant number
@@ -11,6 +13,31 @@
 --   T-07  index on messages.provider_message_id — status callbacks + idempotency.
 --   DB correctness — unique(service_categories org,name), open-conversation
 --         uniqueness, lead_score range, and missing indexes for real queries.
+
+-- ── Normalize stored phone numbers to E.164 (NANP) ──────────────────────────
+-- Mirrors src/lib/phone.ts for common North-American formats so historical rows
+-- match normalized inbound values (opt-out + routing correctness) and so the
+-- twilio_numbers uniqueness below collapses format variants. Runs BEFORE the
+-- dedupe/constraint. Non-NANP / already-E.164 values are left untouched.
+update public.twilio_numbers
+set phone_number = '+1' || regexp_replace(phone_number, '\D', '', 'g')
+where phone_number is not null and phone_number !~ '^\+'
+  and length(regexp_replace(phone_number, '\D', '', 'g')) = 10;
+update public.twilio_numbers
+set phone_number = '+' || regexp_replace(phone_number, '\D', '', 'g')
+where phone_number is not null and phone_number !~ '^\+'
+  and length(regexp_replace(phone_number, '\D', '', 'g')) = 11
+  and left(regexp_replace(phone_number, '\D', '', 'g'), 1) = '1';
+
+update public.leads
+set customer_phone = '+1' || regexp_replace(customer_phone, '\D', '', 'g')
+where customer_phone is not null and customer_phone !~ '^\+'
+  and length(regexp_replace(customer_phone, '\D', '', 'g')) = 10;
+update public.leads
+set customer_phone = '+' || regexp_replace(customer_phone, '\D', '', 'g')
+where customer_phone is not null and customer_phone !~ '^\+'
+  and length(regexp_replace(customer_phone, '\D', '', 'g')) = 11
+  and left(regexp_replace(customer_phone, '\D', '', 'g'), 1) = '1';
 
 -- ── twilio_numbers: one organization per phone number ───────────────────────
 delete from public.twilio_numbers
@@ -37,6 +64,21 @@ begin
 end $$;
 
 -- ── service_categories: no duplicate category names within an org ────────────
+-- Re-point dependent intake_templates at the surviving (newest) row first so the
+-- ON DELETE SET NULL below doesn't orphan a template's category association.
+update public.intake_templates t
+set service_category_id = keep.keep_id
+from (
+  select
+    (array_agg(id order by created_at desc))[1] as keep_id,
+    array_agg(id) as all_ids
+  from public.service_categories
+  group by organization_id, name
+  having count(*) > 1
+) keep
+where t.service_category_id = any(keep.all_ids)
+  and t.service_category_id <> keep.keep_id;
+
 delete from public.service_categories
 where id in (
   select id from (

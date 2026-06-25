@@ -11,7 +11,9 @@ export async function aiFetch(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  const retries = Math.max(0, env.ai.maxRetries);
+  const retries = Number.isFinite(env.ai.maxRetries)
+    ? Math.max(0, env.ai.maxRetries)
+    : 1;
   const timeoutMs = env.ai.timeoutMs > 0 ? env.ai.timeoutMs : 12_000;
   let lastErr: unknown;
 

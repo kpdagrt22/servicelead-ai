@@ -8,7 +8,10 @@ import {
   webhookCandidateUrls,
 } from "@/lib/twilio/client";
 import { rateLimitDb } from "@/lib/rate-limit";
-import { alreadyProcessed } from "@/lib/webhooks/idempotency";
+import {
+  isWebhookProcessed,
+  markWebhookProcessed,
+} from "@/lib/webhooks/idempotency";
 import { resolveOrgForInboundNumber } from "@/lib/twilio/routing";
 import { normalizePhoneOrRaw } from "@/lib/phone";
 
@@ -54,12 +57,9 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Idempotency: Twilio retries inbound POSTs on timeout (T-07).
-  if (messageSid && (await alreadyProcessed(supabase, messageSid, "twilio", "sms.inbound"))) {
-    return xml();
-  }
-
-  // Durable, multi-instance flood guard (T-09).
+  // Durable, multi-instance flood guard (T-09). This runs BEFORE any idempotency
+  // record so a throttled message is never marked "processed" — its Twilio
+  // retry can still be handled once the window clears.
   if (!(await rateLimitDb(supabase, `sms:${from}`, 12, 60_000)).allowed) {
     return xml();
   }
@@ -68,6 +68,12 @@ export async function POST(req: NextRequest) {
   const organizationId = await resolveOrgForInboundNumber(supabase, to);
   if (!organizationId) {
     console.warn(`[twilio] No org mapped for inbound number ${to}`);
+    return xml();
+  }
+
+  // Idempotency CHECK only (T-07). We mark as processed AFTER success below, so a
+  // timed-out first attempt is reprocessed on retry rather than dropped.
+  if (await isWebhookProcessed(supabase, messageSid, "twilio")) {
     return xml();
   }
 
@@ -82,6 +88,7 @@ export async function POST(req: NextRequest) {
       providerMessageId: messageSid || null,
     });
 
+    await markWebhookProcessed(supabase, messageSid, "twilio", "sms.inbound");
     if (result.outboundMessage) return xml(result.outboundMessage);
     return xml();
   } catch (err) {

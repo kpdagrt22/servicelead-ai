@@ -7,7 +7,10 @@ import {
   webhookCandidateUrls,
 } from "@/lib/twilio/client";
 import { resolveOrgForInboundNumber } from "@/lib/twilio/routing";
-import { alreadyProcessed } from "@/lib/webhooks/idempotency";
+import {
+  isWebhookProcessed,
+  markWebhookProcessed,
+} from "@/lib/webhooks/idempotency";
 import { normalizePhoneOrRaw } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
@@ -61,20 +64,13 @@ export async function POST(req: NextRequest) {
     try {
       const supabase = createAdminClient();
 
-      // Idempotency: a Twilio retry of the same call must not re-trigger
-      // recovery (T-07).
-      if (
-        callSid &&
-        (await alreadyProcessed(supabase, callSid, "twilio", "voice.missed_call"))
-      ) {
-        return new NextResponse(sayXml, {
-          status: 200,
-          headers: { "Content-Type": "text/xml" },
-        });
-      }
-
       const organizationId = await resolveOrgForInboundNumber(supabase, to);
-      if (organizationId) {
+      if (!organizationId) {
+        console.warn(`[twilio/voice] No org mapped for inbound number ${to}`);
+      } else if (await isWebhookProcessed(supabase, callSid, "twilio")) {
+        // Idempotency CHECK only — a confirmed duplicate of an already-handled
+        // call (T-07). We mark AFTER success so a timed-out attempt reprocesses.
+      } else {
         const result = await processIntake(supabase, {
           organizationId,
           source: "missed_call",
@@ -92,8 +88,7 @@ export async function POST(req: NextRequest) {
             console.error("[twilio/voice] first recovery SMS failed", sent.error);
           }
         }
-      } else {
-        console.warn(`[twilio/voice] No org mapped for inbound number ${to}`);
+        await markWebhookProcessed(supabase, callSid, "twilio", "voice.missed_call");
       }
     } catch (err) {
       console.error("[twilio/voice] missed-call handling failed", env.app.url, err);

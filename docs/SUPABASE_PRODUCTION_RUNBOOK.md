@@ -136,7 +136,10 @@ Apply in this exact sequence. All migrations are **additive / non-destructive**.
 - [ ] `0007_webhook_events.sql` - Idempotency ledger for Twilio/Stripe webhook
       retries (service-role only; RLS enabled, no policies).
 - [ ] `0008_rate_limits.sql` - Durable cross-instance rate-limit table +
-      `rate_limit_hit()` function (service-role only).
+      `rate_limit_hit()` function (service-role only). Expired buckets reset in
+      place on the next hit, so cleanup is optional; to reclaim rows from
+      one-off keys, schedule `select public.prune_rate_limits();` periodically
+      (e.g. via pg_cron every 15 min) — not required for correctness.
 
 ---
 

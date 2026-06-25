@@ -133,12 +133,14 @@ export async function sendReplyAction(formData: FormData) {
   const guard = canSendSms(lead);
   let status = "stored";
   let sid: string | undefined;
+  // The persisted body must match what the customer actually receives.
+  const sentBody = `${body}\n\n${OPT_OUT_FOOTER}`;
 
   // Try to actually deliver over SMS when possible & permitted.
   if (guard.allowed && lead.customer_phone) {
     const result = await sendSms({
       to: normalizePhoneOrRaw(lead.customer_phone) ?? lead.customer_phone,
-      body: `${body}\n\n${OPT_OUT_FOOTER}`,
+      body: sentBody,
     });
     status = result.sent ? "sent" : result.simulated ? "simulated" : "failed";
     sid = result.sid;
@@ -153,7 +155,9 @@ export async function sendReplyAction(formData: FormData) {
     direction: "outbound",
     channel: "sms",
     to_number: lead.customer_phone,
-    body,
+    // Record the delivered body (with footer) when it went out over SMS; the
+    // bare body otherwise (stored-only / blocked).
+    body: status === "sent" || status === "simulated" ? sentBody : body,
     ai_generated: false,
     status,
     provider_message_id: sid ?? null,
