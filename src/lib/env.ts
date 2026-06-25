@@ -11,9 +11,20 @@ function get(name: string): string | undefined {
   return v && v.trim() !== "" ? v.trim() : undefined;
 }
 
+function getList(name: string): string[] {
+  const v = get(name);
+  return v
+    ? v
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    : [];
+}
+
 export const env = {
   app: {
     url: get("NEXT_PUBLIC_APP_URL") ?? "http://localhost:3000",
+    adminEmails: getList("ADMIN_EMAILS"),
   },
   supabase: {
     url: get("NEXT_PUBLIC_SUPABASE_URL"),
@@ -36,16 +47,24 @@ export const env = {
   },
   resend: {
     apiKey: get("RESEND_API_KEY"),
-    fromEmail: get("RESEND_FROM_EMAIL") ?? "ServiceLead AI <leads@example.com>",
+    // FROM_EMAIL is the canonical name; RESEND_FROM_EMAIL kept for back-compat.
+    fromEmail:
+      get("FROM_EMAIL") ??
+      get("RESEND_FROM_EMAIL") ??
+      "ServiceLead AI <leads@example.com>",
   },
   stripe: {
     secretKey: get("STRIPE_SECRET_KEY"),
     webhookSecret: get("STRIPE_WEBHOOK_SECRET"),
     publishableKey: get("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+    // Price IDs are not secret; the public names are canonical so the pricing
+    // UI can read them. Server-only STRIPE_PRICE_* are accepted as a fallback.
     prices: {
-      starter: get("STRIPE_PRICE_STARTER"),
-      pro: get("STRIPE_PRICE_PRO"),
-      growth: get("STRIPE_PRICE_GROWTH"),
+      starter:
+        get("NEXT_PUBLIC_STRIPE_PRICE_STARTER") ?? get("STRIPE_PRICE_STARTER"),
+      pro: get("NEXT_PUBLIC_STRIPE_PRICE_PRO") ?? get("STRIPE_PRICE_PRO"),
+      growth:
+        get("NEXT_PUBLIC_STRIPE_PRICE_GROWTH") ?? get("STRIPE_PRICE_GROWTH"),
     },
   },
 } as const;
@@ -69,3 +88,7 @@ export const isRealAiConfigured = (): boolean => {
   if (env.ai.provider === "anthropic") return Boolean(env.ai.anthropicKey);
   return false;
 };
+
+/** Whether an email is allowlisted for the internal admin/debug area. */
+export const isAdminEmail = (email: string | null | undefined): boolean =>
+  Boolean(email && env.app.adminEmails.includes(email.toLowerCase()));

@@ -4,7 +4,14 @@
  * `supabase gen types typescript --local > src/types/database.ts`.)
  */
 
-export type LeadStatus = "new" | "contacted" | "booked" | "won" | "lost";
+export type LeadStatus =
+  | "new"
+  | "contacted"
+  | "booked"
+  | "won"
+  | "lost"
+  | "spam"
+  | "archived";
 export type LeadSource = "missed_call" | "sms" | "web_form" | "manual" | "test";
 export type MessageDirection = "inbound" | "outbound";
 export type Channel = "sms" | "web" | "manual";

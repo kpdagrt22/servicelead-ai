@@ -6,6 +6,11 @@ import { EmptyState } from "@/components/app/empty-state";
 import { StatusBadge } from "@/components/ui/badges";
 import { BOARD_COLUMNS } from "@/lib/leads/status";
 import { LEAD_STATUS_LABELS } from "@/lib/constants";
+import {
+  getMonthlyAiSummaryCount,
+  getMonthlyLeadCount,
+} from "@/lib/billing/usage";
+import { env } from "@/lib/env";
 import type { Lead } from "@/types/database";
 
 export const metadata = { title: "Dashboard — ServiceLead AI" };
@@ -21,35 +26,51 @@ export default async function DashboardPage() {
   const orgId = ctx.organization.id;
   const supabase = await createClient();
 
-  const [{ data: leads }, { count: openConversations }, { count: bookedAppointments }] =
-    await Promise.all([
-      supabase
-        .from("leads")
-        .select("*")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false })
-        .limit(200),
-      supabase
-        .from("conversations")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId)
-        .eq("status", "open"),
-      supabase
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId),
-    ]);
+  const [
+    { data: leads },
+    { count: openConversations },
+    { count: bookedAppointments },
+    leadsThisMonth,
+    aiSummariesThisMonth,
+  ] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("*")
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase
+      .from("conversations")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId)
+      .eq("status", "open"),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", orgId),
+    getMonthlyLeadCount(supabase, orgId),
+    getMonthlyAiSummaryCount(supabase, orgId),
+  ]);
 
   const all = (leads ?? []) as Lead[];
   const todayIso = startOfToday();
   const newToday = all.filter((l) => l.created_at >= todayIso).length;
   const recovered = all.filter((l) => l.source === "missed_call").length;
+  const urgent = all.filter(
+    (l) =>
+      (l.urgency === "emergency" || l.urgency === "high") &&
+      l.status !== "won" &&
+      l.status !== "lost" &&
+      l.status !== "archived" &&
+      l.status !== "spam",
+  ).length;
   const contacted = all.filter((l) => l.status !== "new").length;
   const responseRate =
     all.length > 0 ? Math.round((contacted / all.length) * 100) : 0;
 
   const byStatus = (status: string) => all.filter((l) => l.status === status);
   const recent = all.slice(0, 8);
+  const publicUrl = `${env.app.url}/u/${ctx.organization.slug}`;
 
   return (
     <div className="space-y-8">
@@ -73,9 +94,38 @@ export default async function DashboardPage() {
       {/* Metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="New leads today" value={newToday} accent />
-        <StatCard label="Missed-call recovered" value={recovered} />
+        <StatCard label="Urgent leads" value={urgent} />
         <StatCard label="Open conversations" value={openConversations ?? 0} />
+        <StatCard label="Missed-call recovered" value={recovered} />
+        <StatCard label="Leads this month" value={leadsThisMonth} />
+        <StatCard label="AI summaries this month" value={aiSummariesThisMonth} />
         <StatCard label="Booked appointments" value={bookedAppointments ?? 0} />
+        <StatCard label="Total leads" value={all.length} />
+      </div>
+
+      {/* CTA cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <CtaCard
+          href="/app/intake"
+          title="Configure services"
+          body="Set the services you offer and the questions AI asks."
+        />
+        <CtaCard
+          href="/app/simulator"
+          title="Test missed-call simulator"
+          body="See the full recovery flow without any telephony."
+        />
+        <CtaCard
+          href={publicUrl}
+          title="Open public intake form"
+          body="Share this link so customers can submit requests."
+          external
+        />
+        <CtaCard
+          href="/app/leads"
+          title="View lead dashboard"
+          body="Browse, filter, and follow up on every lead."
+        />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="card p-5">
@@ -180,5 +230,36 @@ function StatCard({
         {value}
       </p>
     </div>
+  );
+}
+
+function CtaCard({
+  href,
+  title,
+  body,
+  external,
+}: {
+  href: string;
+  title: string;
+  body: string;
+  external?: boolean;
+}) {
+  const className =
+    "card flex flex-col p-5 transition hover:border-brand-300 hover:shadow";
+  const inner = (
+    <>
+      <p className="font-semibold text-gray-900">{title}</p>
+      <p className="mt-1 text-sm text-gray-500">{body}</p>
+      <span className="mt-3 text-sm font-medium text-brand-600">Open →</span>
+    </>
+  );
+  return external ? (
+    <a href={href} target="_blank" rel="noreferrer" className={className}>
+      {inner}
+    </a>
+  ) : (
+    <Link href={href} className={className}>
+      {inner}
+    </Link>
   );
 }

@@ -1,5 +1,7 @@
 # ServiceLead AI
 
+[![CI](https://github.com/kpdagrt22/servicelead-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/kpdagrt22/servicelead-ai/actions/workflows/ci.yml)
+
 **Stop losing customers when you miss a call.**
 
 ServiceLead AI is a missed-call recovery and AI lead-intake system for local
@@ -117,9 +119,10 @@ supabase db push
 **Option B — SQL editor (copy/paste, in order)**
 
 ```
-supabase/migrations/0001_init.sql      # tables + indexes
-supabase/migrations/0002_rls.sql       # row level security
-supabase/migrations/0003_triggers.sql  # profile/org triggers + seed defaults
+supabase/migrations/0001_init.sql               # tables + indexes
+supabase/migrations/0002_rls.sql                # row level security
+supabase/migrations/0003_triggers.sql           # profile/org triggers + seed defaults
+supabase/migrations/0004_subscriptions_unique.sql  # 1 subscription per org
 ```
 
 4. (Auth) In **Authentication → Providers → Email**, enable email/password. For
@@ -194,8 +197,16 @@ npm run test:e2e    # Playwright smoke tests (no backend needed)
 
 Unit tests cover: AI intake schema validation, lead scoring, STOP/opt-out
 handling, lead status transitions, and owner-summary/next-message generation.
-See [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) for the manual
+**Integration tests** ([`tests/unit/intake.test.ts`](tests/unit/intake.test.ts))
+exercise the full `processIntake` pipeline through an in-memory Supabase fake —
+including the regression that opt-out is enforced per phone across leads and
+channels. CI (GitHub Actions) runs typecheck + lint + test + build on every push
+and PR. See [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) for the manual
 validation checklist and the documented full-flow E2E.
+
+A health/configuration probe is available at **`/api/health`** (returns only
+booleans about which integrations are configured — no secrets) for uptime
+monitors and post-deploy smoke checks.
 
 ---
 
@@ -229,7 +240,7 @@ src/
     email/  stripe/              integrations
   components/                    UI (marketing, app, public, auth)
   types/database.ts              hand-maintained DB types
-supabase/migrations/            0001 schema, 0002 RLS, 0003 triggers
+supabase/migrations/            0001 schema, 0002 RLS, 0003 triggers, 0004 subs unique
 tests/unit/  tests/e2e/         vitest + playwright
 docs/                           PRD, architecture, DB, Twilio, AI, compliance, etc.
 ```

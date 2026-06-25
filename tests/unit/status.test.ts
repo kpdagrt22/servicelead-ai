@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   canTransition,
+  canTransitionLeadStatus,
+  getLeadStatusBadgeVariant,
+  getLeadStatusLabel,
   isLeadStatus,
   nextStatuses,
 } from "@/lib/leads/status";
@@ -33,6 +36,26 @@ describe("lead status transitions", () => {
 
   it("validates status strings", () => {
     expect(isLeadStatus("new")).toBe(true);
+    expect(isLeadStatus("spam")).toBe(true);
+    expect(isLeadStatus("archived")).toBe(true);
     expect(isLeadStatus("nonsense")).toBe(false);
+  });
+
+  it("supports spam and archived transitions", () => {
+    expect(canTransitionLeadStatus("new", "spam")).toBe(true);
+    expect(canTransitionLeadStatus("new", "archived")).toBe(true);
+    // can recover a spam lead, and restore an archived one
+    expect(canTransitionLeadStatus("spam", "new")).toBe(true);
+    expect(canTransitionLeadStatus("archived", "contacted")).toBe(true);
+    // canTransition is an alias of canTransitionLeadStatus
+    expect(canTransition).toBe(canTransitionLeadStatus);
+  });
+
+  it("provides labels and badge variants for every status", () => {
+    expect(getLeadStatusLabel("new")).toBe("New");
+    expect(getLeadStatusLabel("spam")).toBe("Spam");
+    expect(getLeadStatusBadgeVariant("won")).toBe("success");
+    expect(getLeadStatusBadgeVariant("spam")).toBe("danger");
+    expect(getLeadStatusBadgeVariant("archived")).toBe("neutral");
   });
 });

@@ -32,6 +32,8 @@ const STATUS_STYLES: Record<LeadStatus, string> = {
   booked: "bg-purple-100 text-purple-700",
   won: "bg-brand-100 text-brand-700",
   lost: "bg-gray-200 text-gray-600",
+  spam: "bg-red-100 text-red-700",
+  archived: "bg-gray-100 text-gray-500",
 };
 
 export function StatusBadge({ status }: { status: LeadStatus }) {
