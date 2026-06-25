@@ -77,6 +77,9 @@ Migrations live in `supabase/migrations/` and **must be applied in order**:
 0003_triggers.sql
 0004_subscriptions_unique.sql
 0005_lead_status_expand.sql
+0006_constraints_and_indexes.sql
+0007_webhook_events.sql
+0008_rate_limits.sql
 ```
 
 ### Option A — Supabase CLI (recommended)
@@ -101,6 +104,9 @@ paste/run each file **in this exact order**, one at a time:
 3. `0003_triggers.sql` — signup/org triggers and default seeding
 4. `0004_subscriptions_unique.sql` — subscriptions uniqueness constraint
 5. `0005_lead_status_expand.sql` — expanded lead status values
+6. `0006_constraints_and_indexes.sql` — uniqueness/index hardening
+7. `0007_webhook_events.sql` — webhook idempotency ledger
+8. `0008_rate_limits.sql` — durable rate-limit table + function
 
 > Do not skip or reorder — later migrations depend on earlier ones.
 
@@ -211,7 +217,7 @@ required consent checkbox. A new lead should appear under `/app/leads`.
   configured/missing vars without printing secret values and exits non-zero only
   if a var required for your current mode is missing.
 - **Migrations errored or partially applied.** Re-check the order
-  (`0001 → 0005`). Later files depend on earlier ones; running them out of order
+  (`0001 → 0008`). Later files depend on earlier ones; running them out of order
   will fail.
 - **Tables missing after `db push`.** Confirm `supabase link` points at the right
   project ref and that all five files are present in `supabase/migrations/`.

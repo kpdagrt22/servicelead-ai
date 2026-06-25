@@ -95,7 +95,7 @@ supabase link --project-ref <ref>
 supabase db push
 ```
 
-- [ ] Confirm the CLI reports each of `0001` -> `0005` applied with no errors.
+- [ ] Confirm the CLI reports each of `0001` -> `0008` applied with no errors.
 
 ---
 
@@ -109,6 +109,9 @@ Use this if you cannot run the CLI. Apply files **strictly in order**.
 - [ ] Paste and run `supabase/migrations/0003_triggers.sql`.
 - [ ] Paste and run `supabase/migrations/0004_subscriptions_unique.sql`.
 - [ ] Paste and run `supabase/migrations/0005_lead_status_expand.sql`.
+- [ ] Paste and run `supabase/migrations/0006_constraints_and_indexes.sql`.
+- [ ] Paste and run `supabase/migrations/0007_webhook_events.sql`.
+- [ ] Paste and run `supabase/migrations/0008_rate_limits.sql`.
 - [ ] Run each one to completion before starting the next; do not batch them out of order.
 
 ---
@@ -126,6 +129,14 @@ Apply in this exact sequence. All migrations are **additive / non-destructive**.
       `subscriptions.organization_id` (one subscription per org).
 - [ ] `0005_lead_status_expand.sql` - Expands the `leads.status` CHECK constraint to
       add `'spam'` and `'archived'`.
+- [ ] `0006_constraints_and_indexes.sql` - De-dupes then adds UNIQUE on
+      `twilio_numbers.phone_number` and `service_categories(organization_id, name)`,
+      a unique open-conversation index, a `lead_score` range check, and missing
+      indexes (provider_message_id, appointments.lead_id, leads org+email).
+- [ ] `0007_webhook_events.sql` - Idempotency ledger for Twilio/Stripe webhook
+      retries (service-role only; RLS enabled, no policies).
+- [ ] `0008_rate_limits.sql` - Durable cross-instance rate-limit table +
+      `rate_limit_hit()` function (service-role only).
 
 ---
 
@@ -144,8 +155,11 @@ Apply in this exact sequence. All migrations are **additive / non-destructive**.
   - [ ] `appointments`
   - [ ] `ai_intake_logs`
   - [ ] `subscriptions`
+  - [ ] `webhook_events` (added in `0007`)
+  - [ ] `rate_limits` (added in `0008`)
 - [ ] Spot-check `leads.status` allows `spam` and `archived` (proves `0005` applied).
 - [ ] Spot-check `subscriptions` has a unique constraint on `organization_id` (proves `0004`).
+- [ ] Spot-check `twilio_numbers` has a unique constraint on `phone_number` (proves `0006`).
 
 ---
 
@@ -265,7 +279,7 @@ Apply in this exact sequence. All migrations are **additive / non-destructive**.
 - [ ] **Not sure which env vars are set** -> run `npm run verify:env`. It prints
       configured vs missing (no secrets) and exits non-zero if a required var is absent.
 - [ ] **Migrations seem half-applied** -> verify table list (section 8) and confirm
-      `0001` -> `0005` all ran in order; re-run any missing file (they are additive).
+      `0001` -> `0008` all ran in order; re-run any missing file (they are additive).
 
 ---
 
@@ -293,4 +307,4 @@ Apply in this exact sequence. All migrations are **additive / non-destructive**.
 | Health check | `/api/health` (JSON booleans, no secrets) |
 | Env checker | `npm run verify:env` |
 | Required vars | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
-| Migrations | `0001` -> `0002` -> `0003` -> `0004` -> `0005` (in order) |
+| Migrations | `0001` -> `0002` -> `0003` -> `0004` -> `0005` -> `0006` -> `0007` -> `0008` (in order) |

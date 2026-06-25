@@ -42,9 +42,12 @@ Migrations live in `supabase/migrations/` and **must be applied in order**:
 2. `0002_rls.sql`
 3. `0003_triggers.sql`
 4. `0004_subscriptions_unique.sql`
-5. `0005_*.sql`
+5. `0005_lead_status_expand.sql`
+6. `0006_constraints_and_indexes.sql`
+7. `0007_webhook_events.sql`
+8. `0008_rate_limits.sql`
 
-Apply **0001 → 0005 in order**. Migrations are **additive**; do not skip or
+Apply **0001 → 0008 in order**. Migrations are **additive**; do not skip or
 reorder them — RLS policies and triggers depend on the tables created in `0001`.
 
 ### Option A — Supabase CLI (recommended)
@@ -62,7 +65,9 @@ supabase db push
 
 In the Supabase dashboard, open **SQL Editor** and run each migration's contents
 **in order**: `0001_init.sql`, `0002_rls.sql`, `0003_triggers.sql`,
-`0004_subscriptions_unique.sql`, then `0005_*.sql`.
+`0004_subscriptions_unique.sql`, `0005_lead_status_expand.sql`,
+`0006_constraints_and_indexes.sql`, `0007_webhook_events.sql`, then
+`0008_rate_limits.sql`.
 
 After applying, confirm in **Table Editor** that the core tables exist and that
 **RLS is enabled** on them.

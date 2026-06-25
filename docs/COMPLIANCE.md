@@ -159,6 +159,16 @@ Store only what's needed to do the job:
 - AI runs are logged to `ai_intake_logs` for auditability. The default `mock`
   provider sends nothing externally; if you switch to a real AI provider, that
   data leaves your infrastructure, so review their data-use terms.
+- **`ai_intake_logs` contains PII.** `input_json` stores the full intake context
+  including the customer's name, email, address, and message content, retained
+  indefinitely by default. Before paid/production use, set a retention policy:
+  periodically purge or redact old `ai_intake_logs` rows (e.g. older than 30-90
+  days) and honor deletion requests for a contact across `leads`, `messages`,
+  `conversations`, and `ai_intake_logs`.
+- **Phone numbers are normalized to E.164** on capture so opt-out and
+  de-duplication are reliable across formats (`+1 (555) 123-4567` and
+  `555-123-4567` are the same contact). This makes the per-phone STOP guarantee
+  robust rather than format-dependent.
 - Consider documenting retention and offering deletion on request, per the
   privacy laws of your market.
 

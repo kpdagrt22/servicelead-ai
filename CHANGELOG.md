@@ -6,6 +6,60 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Production hardening (post-alpha roadmap)
+
+#### Added
+
+- **Phone normalization to E.164** (`src/lib/phone.ts`) applied at every
+  boundary (intake, opt-out matching, Twilio routing, settings, onboarding) so a
+  contact is one identity regardless of format — making the per-phone STOP
+  guarantee robust.
+- **Webhook idempotency** (`webhook_events`, migration `0007`): Twilio
+  `MessageSid`/`CallSid` and Stripe `event.id` are deduped, so retries no longer
+  create duplicate leads, AI runs, or billing updates.
+- **Durable rate limiting** (`rate_limits` + `rate_limit_hit()`, migration
+  `0008`): public intake (per-IP and per-org) and inbound SMS now rate-limit
+  across instances via Postgres, with an in-memory fallback.
+- **Real-provider AI timeout + retry** (`src/lib/ai/http.ts`): a hung LLM can no
+  longer block the inbound webhook.
+- **Stripe billing portal** (`/api/stripe/portal` + "Manage billing" button) so
+  customers can update payment method or cancel.
+- **Role enforcement**: `requireOrgOwnerOrAdmin` now gates settings, number
+  registration, destructive config, and billing (previously dead helpers).
+- **Mobile navigation** for the dashboard (drawer) and marketing header
+  (hamburger); lead rows show urgency/score on phones.
+- **Mutation feedback**: settings/number/simulator success+error states;
+  confirmation prompt before deleting a service category.
+- Migration `0006`: `unique(twilio_numbers.phone_number)`,
+  `unique(service_categories org,name)`, unique open-conversation index,
+  `lead_score` range check, and missing indexes.
+- Node runtime pinned (`engines` + `.nvmrc`); new tests for phone, Twilio
+  routing, and env predicates (71 unit tests total).
+
+#### Fixed
+
+- **Critical (lead loss / cross-tenant):** inbound Twilio routing no longer
+  silently drops or mis-routes a lead when a number is duplicated or unmapped;
+  registering a number already claimed by another org is rejected.
+- **Critical (webhook outage):** Twilio signature validation now checks the
+  actual request URL (forwarded headers) with env fallback, instead of relying
+  solely on `NEXT_PUBLIC_APP_URL` (a host mismatch 403'd every webhook).
+- **Outbound SMS delivery tracking:** `sendSms` attaches a `statusCallback` and
+  stores the SID; SMS AI replies are stored as `sent` (not perpetually
+  `queued`) and always carry the opt-out footer.
+- **`sendReplyAction`** asserts the supplied conversation belongs to the org
+  before writing (closes a cross-tenant write).
+- **Stripe webhook reliability:** subscription metadata is propagated to the
+  Subscription object, `current_period_end` is read tolerant of API-version
+  drift, `invoice.payment_failed` → `past_due`, and the `apiVersion` cast was
+  removed.
+- **Dashboard metrics** use exact `COUNT` queries instead of a 200-row slice
+  (correct past 200 leads); removed the hardcoded "Avg first response: Instant".
+- **Truthful config signals:** `isResendConfigured()` is false when the sender
+  is still the `example.com` placeholder; startup warns on a non-https/localhost
+  `NEXT_PUBLIC_APP_URL` in production.
+- Onboarding retries on a slug collision instead of surfacing a raw DB error.
+
 ### Added
 
 - **Alpha validation readiness**: env hardening (`scripts/verify-env.ts` +

@@ -50,4 +50,24 @@ export function logStartupConfig(): void {
         "webhook signatures are always validated.",
     );
   }
+
+  if (process.env.NODE_ENV === "production") {
+    // NEXT_PUBLIC_APP_URL is load-bearing: it builds Stripe redirect URLs and is
+    // the fallback for Twilio webhook signature validation.
+    if (!/^https:\/\//i.test(env.app.url) || env.app.url.includes("localhost")) {
+      console.warn(
+        `[startup] NEXT_PUBLIC_APP_URL is "${env.app.url}" in production. Set it ` +
+          "to your absolute https URL — Stripe redirects and Twilio signature " +
+          "validation depend on it.",
+      );
+    }
+    // A real key but placeholder sender means every email silently bounces.
+    if (process.env.RESEND_API_KEY && !isResendConfigured()) {
+      console.warn(
+        "[startup] RESEND_API_KEY is set but FROM_EMAIL is missing or still the " +
+          "example.com placeholder; owner emails will NOT send. Set a verified " +
+          "FROM_EMAIL.",
+      );
+    }
+  }
 }
