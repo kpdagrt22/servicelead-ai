@@ -37,6 +37,10 @@ export const env = {
     openaiModel: get("OPENAI_MODEL") ?? "gpt-4o-mini",
     anthropicKey: get("ANTHROPIC_API_KEY"),
     anthropicModel: get("ANTHROPIC_MODEL") ?? "claude-haiku-4-5-20251001",
+    // Network budget for real-provider calls so a hung LLM never blocks an
+    // inbound webhook (which has its own Twilio-side timeout + retries).
+    timeoutMs: Number(get("AI_TIMEOUT_MS") ?? "12000"),
+    maxRetries: Number(get("AI_MAX_RETRIES") ?? "1"),
   },
   twilio: {
     accountSid: get("TWILIO_ACCOUNT_SID"),
@@ -79,7 +83,21 @@ export const isTwilioConfigured = (): boolean =>
       (env.twilio.messagingServiceSid || env.twilio.phoneNumber),
   );
 
-export const isResendConfigured = (): boolean => Boolean(env.resend.apiKey);
+/** Placeholder sender shipped in .env.example — never deliverable. */
+export const PLACEHOLDER_FROM_EMAIL = "ServiceLead AI <leads@example.com>";
+
+/**
+ * Resend is only *functionally* configured when there's an API key AND a real
+ * sender. Leaving the placeholder example.com sender would make every email
+ * bounce while reporting "configured" — so we treat that as not configured and
+ * fall back to console logging instead of silently dropping notifications.
+ */
+export const isResendConfigured = (): boolean =>
+  Boolean(
+    env.resend.apiKey &&
+      env.resend.fromEmail &&
+      !env.resend.fromEmail.includes("example.com"),
+  );
 
 export const isStripeConfigured = (): boolean => Boolean(env.stripe.secretKey);
 

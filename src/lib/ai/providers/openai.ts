@@ -5,6 +5,7 @@ import {
   type LeadIntakeResult,
 } from "@/lib/ai/schemas/lead-intake";
 import { buildUserPrompt, extractJson, SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { aiFetch } from "@/lib/ai/http";
 import { env } from "@/lib/env";
 
 /**
@@ -24,7 +25,7 @@ export class OpenAiProvider implements AiProvider {
       throw new Error("OPENAI_API_KEY is not configured");
     }
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await aiFetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -33,6 +34,7 @@ export class OpenAiProvider implements AiProvider {
       body: JSON.stringify({
         model: this.model,
         temperature: 0.3,
+        max_tokens: 1024,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

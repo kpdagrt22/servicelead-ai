@@ -5,6 +5,7 @@ import {
   type LeadIntakeResult,
 } from "@/lib/ai/schemas/lead-intake";
 import { scoreLead, urgencyFromText } from "@/lib/leads/scoring";
+import { HOT_LEAD_SCORE_THRESHOLD } from "@/lib/constants";
 
 /**
  * Mock AI provider — fully deterministic, no API key required.
@@ -191,7 +192,8 @@ export class MockAiProvider implements AiProvider {
     return {
       extracted_fields: fields,
       next_message_to_customer: nextMessage(missing, context, fields),
-      should_notify_owner: enough || score >= 70 || riskFlags.length > 0,
+      should_notify_owner:
+        enough || score >= HOT_LEAD_SCORE_THRESHOLD || riskFlags.length > 0,
       owner_summary: buildSummary(fields, context, score),
       lead_score: score,
       missing_fields: missing,

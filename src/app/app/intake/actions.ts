@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { requireOrg } from "@/lib/auth";
+import { requireOrg, requireOrgOwnerOrAdmin } from "@/lib/auth";
 import {
   intakeQuestionSchema,
   serviceCategorySchema,
@@ -75,7 +75,7 @@ export async function toggleServiceCategoryAction(formData: FormData) {
 }
 
 export async function deleteServiceCategoryAction(formData: FormData) {
-  const ctx = await requireOrg();
+  const ctx = await requireOrgOwnerOrAdmin();
   const id = String(formData.get("id"));
   const supabase = await createClient();
   await supabase

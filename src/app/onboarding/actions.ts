@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { randomBytes } from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 import { onboardingSchema } from "@/lib/validation/schemas";
+import { normalizePhoneOrRaw } from "@/lib/phone";
 import { slugify } from "@/lib/utils";
 
 export interface OnboardingState {
@@ -58,37 +59,49 @@ export async function createOrganizationAction(
     .update({ full_name: input.ownerName, email: input.email })
     .eq("id", user.id);
 
-  // Unique slug.
+  // Unique slug. Retry on the rare collision instead of surfacing a raw DB
+  // error to a brand-new user.
   const base = slugify(input.businessName) || "business";
-  const slug = `${base}-${randomBytes(3).toString("hex")}`;
+  const orgFields = {
+    owner_id: user.id,
+    name: input.businessName,
+    business_type: input.businessType || null,
+    country: input.country,
+    state: input.state || null,
+    city: input.city || null,
+    timezone: input.timezone,
+    website: input.website || null,
+    phone: normalizePhoneOrRaw(input.phone) ?? input.phone,
+    notification_email: input.notificationEmail,
+    notification_phone: normalizePhoneOrRaw(input.notificationPhone) || null,
+    booking_link: input.bookingLink || null,
+    review_link: input.reviewLink || null,
+    emergency_service: input.emergencyService,
+    default_response_delay: input.defaultResponseDelay || null,
+    sms_consent: input.smsConsent,
+    onboarded: true,
+  };
 
-  const { data: org, error } = await supabase
-    .from("organizations")
-    .insert({
-      owner_id: user.id,
-      name: input.businessName,
-      slug,
-      business_type: input.businessType || null,
-      country: input.country,
-      state: input.state || null,
-      city: input.city || null,
-      timezone: input.timezone,
-      website: input.website || null,
-      phone: input.phone,
-      notification_email: input.notificationEmail,
-      notification_phone: input.notificationPhone || null,
-      booking_link: input.bookingLink || null,
-      review_link: input.reviewLink || null,
-      emergency_service: input.emergencyService,
-      default_response_delay: input.defaultResponseDelay || null,
-      sms_consent: input.smsConsent,
-      onboarded: true,
-    })
-    .select("id")
-    .single();
+  let org: { id: string } | null = null;
+  let lastError: { message: string; code?: string } | null = null;
+  for (let attempt = 0; attempt < 5 && !org; attempt++) {
+    const slug = `${base}-${randomBytes(attempt < 3 ? 3 : 5).toString("hex")}`;
+    const { data, error } = await supabase
+      .from("organizations")
+      .insert({ ...orgFields, slug })
+      .select("id")
+      .single();
+    if (data) {
+      org = data as { id: string };
+      break;
+    }
+    lastError = error as { message: string; code?: string } | null;
+    // Only retry on a unique-violation (slug collision); fail fast otherwise.
+    if (lastError?.code !== "23505") break;
+  }
 
-  if (error || !org) {
-    return { error: `Could not create organization: ${error?.message}` };
+  if (!org) {
+    return { error: `Could not create organization: ${lastError?.message}` };
   }
 
   // The DB trigger seeds the default service categories. Reconcile with the

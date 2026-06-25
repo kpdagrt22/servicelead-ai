@@ -5,6 +5,7 @@ import {
   type LeadIntakeResult,
 } from "@/lib/ai/schemas/lead-intake";
 import { buildUserPrompt, extractJson, SYSTEM_PROMPT } from "@/lib/ai/prompt";
+import { aiFetch } from "@/lib/ai/http";
 import { env } from "@/lib/env";
 
 /**
@@ -21,7 +22,7 @@ export class AnthropicProvider implements AiProvider {
       throw new Error("ANTHROPIC_API_KEY is not configured");
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await aiFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

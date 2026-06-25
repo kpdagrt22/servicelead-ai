@@ -1,9 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { env, isSupabaseConfigured } from "@/lib/env";
-import { validateTwilioSignature } from "@/lib/twilio/client";
+import { isSupabaseConfigured } from "@/lib/env";
+import {
+  validateTwilioSignature,
+  webhookCandidateUrls,
+} from "@/lib/twilio/client";
 
 export const dynamic = "force-dynamic";
+
+const PATH = "/api/twilio/sms/status";
 
 /**
  * Delivery status callback. Twilio POSTs MessageSid + MessageStatus
@@ -17,10 +22,9 @@ export async function POST(req: NextRequest) {
   const params: Record<string, string> = {};
   form.forEach((v, k) => (params[k] = String(v)));
 
-  const url = `${env.app.url}/api/twilio/sms/status`;
   const valid = await validateTwilioSignature(
     req.headers.get("x-twilio-signature"),
-    url,
+    webhookCandidateUrls(req, PATH),
     params,
   );
   if (!valid) return new NextResponse("Invalid signature", { status: 403 });

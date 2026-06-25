@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireOrg } from "@/lib/auth";
-import { assertLeadBelongsToOrg } from "@/lib/auth/organizations";
+import {
+  assertConversationBelongsToOrg,
+  assertLeadBelongsToOrg,
+} from "@/lib/auth/organizations";
+import { normalizePhoneOrRaw } from "@/lib/phone";
 import { canTransition } from "@/lib/leads/status";
 import { isLeadStatus } from "@/lib/leads/status";
 import { sendOwnerLeadEmail } from "@/lib/email/resend";
@@ -113,6 +117,19 @@ export async function sendReplyAction(formData: FormData) {
   const { lead, orgId } = await loadOwnedLead(leadId);
   const supabase = await createClient();
 
+  // T-06: never trust a form-supplied conversation id. Only attach it when it
+  // provably belongs to this org; otherwise drop it (the reply still records
+  // against the lead) rather than touching another org's conversation.
+  let safeConversationId: string | null = null;
+  if (conversationId) {
+    try {
+      await assertConversationBelongsToOrg(conversationId, orgId, supabase);
+      safeConversationId = conversationId;
+    } catch {
+      safeConversationId = null;
+    }
+  }
+
   const guard = canSendSms(lead);
   let status = "stored";
   let sid: string | undefined;
@@ -120,7 +137,7 @@ export async function sendReplyAction(formData: FormData) {
   // Try to actually deliver over SMS when possible & permitted.
   if (guard.allowed && lead.customer_phone) {
     const result = await sendSms({
-      to: lead.customer_phone,
+      to: normalizePhoneOrRaw(lead.customer_phone) ?? lead.customer_phone,
       body: `${body}\n\n${OPT_OUT_FOOTER}`,
     });
     status = result.sent ? "sent" : result.simulated ? "simulated" : "failed";
@@ -131,7 +148,7 @@ export async function sendReplyAction(formData: FormData) {
 
   await supabase.from("messages").insert({
     organization_id: orgId,
-    conversation_id: conversationId || null,
+    conversation_id: safeConversationId,
     lead_id: leadId,
     direction: "outbound",
     channel: "sms",

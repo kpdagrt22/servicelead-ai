@@ -7,10 +7,12 @@ import type {
 } from "@/lib/ai/schemas/lead-intake";
 import {
   detectOptOutAction,
+  OPT_OUT_FOOTER,
   START_CONFIRMATION,
   STOP_CONFIRMATION,
 } from "@/lib/twilio/optout";
 import { sendOwnerLeadEmail } from "@/lib/email/resend";
+import { normalizePhoneOrRaw } from "@/lib/phone";
 import { env } from "@/lib/env";
 import type {
   Channel,
@@ -42,6 +44,13 @@ export interface ProcessIntakeInput {
   inboundBody?: string | null;
   knownFields?: ExtractedFields;
   consent?: { status: string; source: string };
+  /** Provider message id (e.g. Twilio MessageSid) for the inbound message. */
+  providerMessageId?: string | null;
+}
+
+/** Append the opt-out footer to an outbound SMS unless it already has one. */
+function ensureOptOutFooter(body: string): string {
+  return /reply stop/i.test(body) ? body : `${body}\n\n${OPT_OUT_FOOTER}`;
 }
 
 export interface ProcessIntakeResult {
@@ -252,6 +261,7 @@ async function insertMessage(
     toNumber?: string | null;
     aiGenerated?: boolean;
     status?: string;
+    providerMessageId?: string | null;
   },
 ): Promise<void> {
   await supabase.from("messages").insert({
@@ -265,6 +275,7 @@ async function insertMessage(
     body: params.body,
     ai_generated: params.aiGenerated ?? false,
     status: params.status ?? "stored",
+    provider_message_id: params.providerMessageId ?? null,
   });
 }
 
@@ -272,6 +283,17 @@ export async function processIntake(
   supabase: SupabaseClient,
   input: ProcessIntakeInput,
 ): Promise<ProcessIntakeResult> {
+  // Normalize the contact phone ONCE at the boundary so find-or-create,
+  // opt-out matching, and message routing all use the same canonical form
+  // (T-02). Every downstream read of input.customer.phone is now canonical.
+  input = {
+    ...input,
+    customer: {
+      ...input.customer,
+      phone: normalizePhoneOrRaw(input.customer.phone),
+    },
+  };
+
   const { org, categoryNames, questions } = await loadOrgIntakeData(
     supabase,
     input.organizationId,
@@ -286,7 +308,8 @@ export async function processIntake(
   if (input.inboundBody) {
     const action = detectOptOutAction(input.inboundBody);
 
-    // Always record the inbound message.
+    // Always record the inbound message (with the provider id for delivery
+    // reconciliation + dedupe).
     await insertMessage(supabase, {
       organizationId: input.organizationId,
       conversationId,
@@ -295,6 +318,8 @@ export async function processIntake(
       channel: input.channel,
       body: input.inboundBody,
       fromNumber: input.customer.phone ?? null,
+      providerMessageId: input.providerMessageId ?? null,
+      status: "received",
     });
 
     if (action === "opt_out") {
@@ -421,17 +446,26 @@ export async function processIntake(
   await supabase.from("leads").update(patch).eq("id", leadId);
 
   // ── Store the AI's outbound reply (sending handled by the caller) ─────────
-  if (ai.next_message_to_customer) {
+  // For SMS we (a) append the opt-out footer for compliance and (b) record it
+  // as "sent" because the caller returns it as the TwiML reply that Twilio
+  // delivers immediately (it is no longer perpetually "queued").
+  const isSms = input.channel === "sms";
+  const outboundBody = ai.next_message_to_customer
+    ? isSms
+      ? ensureOptOutFooter(ai.next_message_to_customer)
+      : ai.next_message_to_customer
+    : null;
+  if (outboundBody) {
     await insertMessage(supabase, {
       organizationId: input.organizationId,
       conversationId,
       leadId,
       direction: "outbound",
       channel: input.channel,
-      body: ai.next_message_to_customer,
+      body: outboundBody,
       toNumber: input.customer.phone ?? null,
       aiGenerated: true,
-      status: input.channel === "sms" ? "queued" : "stored",
+      status: isSms ? "sent" : "stored",
     });
   }
 
@@ -472,7 +506,7 @@ export async function processIntake(
     leadId,
     conversationId,
     aiResult: ai,
-    outboundMessage: ai.next_message_to_customer,
+    outboundMessage: outboundBody,
     ownerNotified,
     optedOut: false,
     optedIn: false,

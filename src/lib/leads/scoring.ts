@@ -1,5 +1,9 @@
 import type { ExtractedFields } from "@/lib/ai/schemas/lead-intake";
-import type { Urgency } from "@/lib/constants";
+import {
+  HOT_LEAD_SCORE_THRESHOLD,
+  WARM_LEAD_SCORE_THRESHOLD,
+  type Urgency,
+} from "@/lib/constants";
 
 /**
  * Deterministic lead scoring used by the mock AI provider and as a fallback /
@@ -65,7 +69,7 @@ export function clamp(n: number, min: number, max: number): number {
 }
 
 export function scoreLabel(score: number): "hot" | "warm" | "cold" {
-  if (score >= 70) return "hot";
-  if (score >= 40) return "warm";
+  if (score >= HOT_LEAD_SCORE_THRESHOLD) return "hot";
+  if (score >= WARM_LEAD_SCORE_THRESHOLD) return "warm";
   return "cold";
 }

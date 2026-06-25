@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireOrg } from "@/lib/auth";
+import { requireOrgOwnerOrAdmin } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { getStripe, isStripeConfigured, priceIdForPlan } from "@/lib/stripe/client";
 import { PLANS, type Plan } from "@/lib/constants";
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctx = await requireOrg();
+  const ctx = await requireOrgOwnerOrAdmin();
   const { planId } = (await req.json().catch(() => ({}))) as {
     planId?: Plan["id"];
   };
@@ -45,6 +45,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const metadata = { organization_id: ctx.organization.id, plan: plan.id };
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price: priceId, quantity: 1 }],
@@ -52,7 +53,11 @@ export async function POST(req: NextRequest) {
     cancel_url: `${env.app.url}/app/billing?status=cancelled`,
     client_reference_id: ctx.organization.id,
     customer_email: ctx.organization.notification_email ?? ctx.email ?? undefined,
-    metadata: { organization_id: ctx.organization.id, plan: plan.id },
+    metadata,
+    // Propagate org/plan onto the Subscription too — Stripe does NOT copy
+    // Checkout-session metadata to the subscription, and the webhook needs it on
+    // customer.subscription.updated/deleted events (T-08).
+    subscription_data: { metadata },
   });
 
   return NextResponse.json({ ok: true, url: session.url });

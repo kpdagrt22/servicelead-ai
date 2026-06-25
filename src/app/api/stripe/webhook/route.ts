@@ -2,13 +2,25 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { getStripe, isStripeConfigured } from "@/lib/stripe/client";
+import { alreadyProcessed } from "@/lib/webhooks/idempotency";
 
 export const dynamic = "force-dynamic";
 
+/** Read current_period_end from the subscription, tolerating API-version drift
+ * (it moved from the top level onto subscription items in newer versions). */
+function periodEndIso(sub: {
+  current_period_end?: number | null;
+  items?: { data?: { current_period_end?: number | null }[] };
+}): string | null {
+  const ts =
+    sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? null;
+  return ts ? new Date(ts * 1000).toISOString() : null;
+}
+
 /**
- * Stripe webhook. Verifies the signature and upserts the org's subscription row
- * on checkout/subscription events. Placeholder coverage for the core events —
- * extend as needed.
+ * Stripe webhook. Verifies the signature, dedupes by event id (T-07), and keeps
+ * the org's subscription row in sync on checkout / subscription / invoice
+ * events.
  */
 export async function POST(req: NextRequest) {
   if (!isStripeConfigured() || !env.stripe.webhookSecret) {
@@ -32,6 +44,11 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+
+  // Idempotency: Stripe redelivers events; a duplicate is a no-op (T-07).
+  if (await alreadyProcessed(supabase, event.id, "stripe", event.type)) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
 
   try {
     switch (event.type) {
@@ -62,15 +79,20 @@ export async function POST(req: NextRequest) {
           id: string;
           status: string;
           current_period_end?: number;
-          metadata?: { organization_id?: string };
+          items?: { data?: { current_period_end?: number | null }[] };
+          customer?: string;
+          metadata?: { organization_id?: string; plan?: string };
         };
         const orgId = sub.metadata?.organization_id;
-        const patch = {
-          status: sub.status,
-          current_period_end: sub.current_period_end
-            ? new Date(sub.current_period_end * 1000).toISOString()
-            : null,
+        const patch: Record<string, unknown> = {
+          status:
+            event.type === "customer.subscription.deleted"
+              ? "canceled"
+              : sub.status,
+          current_period_end: periodEndIso(sub),
+          stripe_subscription_id: sub.id,
         };
+        if (sub.metadata?.plan) patch.plan = sub.metadata.plan;
         if (orgId) {
           await supabase
             .from("subscriptions")
@@ -81,6 +103,24 @@ export async function POST(req: NextRequest) {
             .from("subscriptions")
             .update(patch)
             .eq("stripe_subscription_id", sub.id);
+        }
+        break;
+      }
+      case "invoice.payment_failed": {
+        const inv = event.data.object as {
+          subscription?: string;
+          customer?: string;
+        };
+        if (inv.subscription) {
+          await supabase
+            .from("subscriptions")
+            .update({ status: "past_due" })
+            .eq("stripe_subscription_id", inv.subscription);
+        } else if (inv.customer) {
+          await supabase
+            .from("subscriptions")
+            .update({ status: "past_due" })
+            .eq("stripe_customer_id", inv.customer);
         }
         break;
       }

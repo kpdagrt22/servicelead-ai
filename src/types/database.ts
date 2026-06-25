@@ -185,3 +185,11 @@ export interface Subscription {
   created_at: string;
   updated_at: string;
 }
+
+/** Idempotency ledger for inbound webhooks (Stripe events, Twilio messages). */
+export interface WebhookEvent {
+  id: string;
+  provider: string;
+  event_type: string | null;
+  created_at: string;
+}

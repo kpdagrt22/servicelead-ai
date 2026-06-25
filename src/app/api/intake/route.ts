@@ -3,8 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isSupabaseConfigured } from "@/lib/env";
 import { processIntake } from "@/lib/leads/intake";
 import { publicIntakeSchema } from "@/lib/validation/schemas";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitDb } from "@/lib/rate-limit";
 import type { ExtractedFields } from "@/lib/ai/schemas/lead-intake";
+
+export const dynamic = "force-dynamic";
 
 /**
  * Public intake endpoint. Powers the customer-facing form at /u/[slug]. Uses
@@ -19,9 +21,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const supabase = createAdminClient();
+
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const limit = rateLimit(`intake:${ip}`, 8, 60_000);
+  // Durable, multi-instance per-IP guard (T-09).
+  const limit = await rateLimitDb(supabase, `intake:ip:${ip}`, 8, 60_000);
   if (!limit.allowed) {
     return NextResponse.json(
       { ok: false, error: "Too many submissions. Please try again shortly." },
@@ -45,8 +50,6 @@ export async function POST(req: NextRequest) {
   }
   const input = parsed.data;
 
-  const supabase = createAdminClient();
-
   // Resolve the organization by id or slug.
   let orgId = input.organizationId;
   if (!orgId && input.slug) {
@@ -61,6 +64,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "Business not found." },
       { status: 404 },
+    );
+  }
+
+  // Per-org cap so one business can't be flooded from many IPs (T-09).
+  const orgLimit = await rateLimitDb(supabase, `intake:org:${orgId}`, 60, 60_000);
+  if (!orgLimit.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many submissions. Please try again shortly." },
+      { status: 429 },
     );
   }
 

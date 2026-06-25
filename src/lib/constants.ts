@@ -45,6 +45,11 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
 export const URGENCY_LEVELS = ["emergency", "high", "medium", "low"] as const;
 export type Urgency = (typeof URGENCY_LEVELS)[number];
 
+// Lead-score buckets — single source of truth (used by scoring, the mock AI
+// owner-notify decision, and the UI badges) to avoid drift.
+export const HOT_LEAD_SCORE_THRESHOLD = 70;
+export const WARM_LEAD_SCORE_THRESHOLD = 40;
+
 // ── Billing plans ───────────────────────────────────────────────────────────
 export interface Plan {
   id: "starter" | "pro" | "growth";

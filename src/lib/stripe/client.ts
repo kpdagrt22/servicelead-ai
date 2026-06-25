@@ -10,7 +10,8 @@ import type { Plan } from "@/lib/constants";
 export async function getStripe() {
   if (!isStripeConfigured()) return null;
   const Stripe = (await import("stripe")).default;
-  return new Stripe(env.stripe.secretKey!, { apiVersion: "2024-06-20" as never });
+  // Use the SDK's pinned default apiVersion (no `as never` cast / hidden drift).
+  return new Stripe(env.stripe.secretKey!);
 }
 
 export function priceIdForPlan(planId: Plan["id"]): string | undefined {

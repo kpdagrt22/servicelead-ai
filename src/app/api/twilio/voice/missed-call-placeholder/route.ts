@@ -2,9 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env, isSupabaseConfigured } from "@/lib/env";
 import { processIntake } from "@/lib/leads/intake";
-import { validateTwilioSignature } from "@/lib/twilio/client";
+import {
+  validateTwilioSignature,
+  webhookCandidateUrls,
+} from "@/lib/twilio/client";
+import { resolveOrgForInboundNumber } from "@/lib/twilio/routing";
+import { alreadyProcessed } from "@/lib/webhooks/idempotency";
+import { normalizePhoneOrRaw } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
+
+const PATH = "/api/twilio/voice/missed-call-placeholder";
 
 /**
  * Missed-call placeholder webhook.
@@ -38,35 +46,34 @@ export async function POST(req: NextRequest) {
   // RLS-bypassing service-role client. Fails closed when unverifiable.
   const valid = await validateTwilioSignature(
     req.headers.get("x-twilio-signature"),
-    `${env.app.url}/api/twilio/voice/missed-call-placeholder`,
+    webhookCandidateUrls(req, PATH),
     params,
   );
   if (!valid) {
     return new NextResponse("Invalid signature", { status: 403 });
   }
 
-  const from = params.From ?? "";
-  const to = params.To ?? "";
+  const from = normalizePhoneOrRaw(params.From);
+  const to = normalizePhoneOrRaw(params.To);
+  const callSid = params.CallSid || "";
 
   if (from) {
     try {
       const supabase = createAdminClient();
-      let organizationId: string | undefined;
-      const { data: numberRow } = await supabase
-        .from("twilio_numbers")
-        .select("organization_id")
-        .eq("phone_number", to)
-        .maybeSingle();
-      organizationId = numberRow?.organization_id as string | undefined;
 
-      if (!organizationId) {
-        const { data: orgs } = await supabase
-          .from("organizations")
-          .select("id")
-          .limit(2);
-        if (orgs && orgs.length === 1) organizationId = orgs[0].id as string;
+      // Idempotency: a Twilio retry of the same call must not re-trigger
+      // recovery (T-07).
+      if (
+        callSid &&
+        (await alreadyProcessed(supabase, callSid, "twilio", "voice.missed_call"))
+      ) {
+        return new NextResponse(sayXml, {
+          status: 200,
+          headers: { "Content-Type": "text/xml" },
+        });
       }
 
+      const organizationId = await resolveOrgForInboundNumber(supabase, to);
       if (organizationId) {
         const result = await processIntake(supabase, {
           organizationId,
@@ -75,12 +82,18 @@ export async function POST(req: NextRequest) {
           customer: { phone: from },
           inboundBody: null, // bare missed call → AI sends first outreach
           consent: { status: "missed_call", source: "twilio_voice" },
+          providerMessageId: callSid || null,
         });
-        // Send the first recovery SMS out-of-band.
+        // Send the first recovery SMS out-of-band (statusCallback attached).
         if (result.outboundMessage) {
           const { sendSms } = await import("@/lib/twilio/client");
-          await sendSms({ to: from, body: result.outboundMessage });
+          const sent = await sendSms({ to: from, body: result.outboundMessage });
+          if (!sent.sent && !sent.simulated) {
+            console.error("[twilio/voice] first recovery SMS failed", sent.error);
+          }
         }
+      } else {
+        console.warn(`[twilio/voice] No org mapped for inbound number ${to}`);
       }
     } catch (err) {
       console.error("[twilio/voice] missed-call handling failed", env.app.url, err);

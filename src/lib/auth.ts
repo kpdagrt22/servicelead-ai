@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import type { Organization, Profile } from "@/types/database";
+import type { MemberRole, Organization, Profile } from "@/types/database";
 
 /**
  * Server-side helpers for resolving the current user, their profile, and their
@@ -13,6 +13,8 @@ export interface SessionContext {
   email: string | null;
   profile: Profile | null;
   organization: Organization | null;
+  /** The user's role in the active organization (null when no org). */
+  role: MemberRole | null;
 }
 
 export async function getSessionContext(): Promise<SessionContext | null> {
@@ -38,15 +40,17 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     .maybeSingle();
 
   let organization = ownedOrg ?? null;
+  let role: MemberRole | null = organization ? "owner" : null;
   if (!organization) {
     const { data: membership } = await supabase
       .from("organization_members")
-      .select("organization_id, organizations(*)")
+      .select("role, organization_id, organizations(*)")
       .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
     organization =
       (membership?.organizations as unknown as Organization) ?? null;
+    role = organization ? ((membership?.role as MemberRole) ?? "member") : null;
   }
 
   return {
@@ -54,6 +58,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     email: user.email ?? null,
     profile: (profile as Profile) ?? null,
     organization: (organization as Organization) ?? null,
+    role,
   };
 }
 
@@ -71,4 +76,20 @@ export async function requireOrg(): Promise<
   const ctx = await requireUser();
   if (!ctx.organization) redirect("/onboarding");
   return ctx as SessionContext & { organization: Organization };
+}
+
+/**
+ * Require the active user to be an owner or admin of their org (T-05). Used to
+ * gate sensitive, account-level actions (settings, number registration,
+ * destructive config, billing) from plain members. Today every user is the
+ * owner, so this is a forward-safe guard rather than a behavior change.
+ */
+export async function requireOrgOwnerOrAdmin(): Promise<
+  SessionContext & { organization: Organization }
+> {
+  const ctx = await requireOrg();
+  if (ctx.role !== "owner" && ctx.role !== "admin") {
+    redirect("/app");
+  }
+  return ctx;
 }
