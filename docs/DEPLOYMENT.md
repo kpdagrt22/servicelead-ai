@@ -40,6 +40,7 @@ Migrations live in `supabase/migrations/` and **must be applied in order**:
 1. `0001_init.sql`
 2. `0002_rls.sql`
 3. `0003_triggers.sql`
+4. `0004_subscriptions_unique.sql`
 
 ### Option A — Supabase CLI (recommended)
 
@@ -55,7 +56,8 @@ supabase db push
 ### Option B — SQL Editor (manual)
 
 In the Supabase dashboard, open **SQL Editor** and run each migration's contents
-**in order**: `0001_init.sql`, then `0002_rls.sql`, then `0003_triggers.sql`. Do
+**in order**: `0001_init.sql`, `0002_rls.sql`, `0003_triggers.sql`, then
+`0004_subscriptions_unique.sql`. Do
 not skip or reorder — RLS policies and triggers depend on the tables created in
 `0001`.
 

@@ -6,6 +6,8 @@ ServiceLead AI uses Supabase Postgres with Row Level Security. Schema lives in
 1. `0001_init.sql` — tables + indexes
 2. `0002_rls.sql` — RLS policies + `is_org_member()` helper
 3. `0003_triggers.sql` — profile/org triggers + default seeding
+4. `0004_subscriptions_unique.sql` — one subscription row per organization
+   (backs the Stripe webhook upsert)
 
 TypeScript types mirroring the schema are hand-maintained in
 [`src/types/database.ts`](../src/types/database.ts). You can regenerate them with
