@@ -15,6 +15,8 @@ deliberately ships **missed-call SMS + form-based AI intake** (no full voice AI)
 and is designed to run end-to-end with **only Supabase configured**. Twilio,
 Stripe, Resend, and real AI providers are all optional and degrade gracefully.
 
+> **Status & provenance:** Prototype built in hours with AI coding agents, directed and reviewed by [Prakash Kantumutchu (KP)](https://thisiskp.in). Never deployed as a commercial service; built to test end-to-end architecture, RLS, and deterministic fallback patterns. Verified on 23 Oct 2026: `tsc --noEmit` (0 errors) and **74 tests passing** across 13 test files (`npm test`). Case study: [thisiskp.in/work/agent-built-saas-prototypes](https://thisiskp.in/work/agent-built-saas-prototypes).
+
 ---
 
 ## Table of contents
@@ -263,3 +265,7 @@ calls, SMS replies, form submissions). It is **not** for cold outbound. STOP /
 opt-out is always honored. It does **not** provide medical advice or emergency
 triage. The business owner is responsible for the final service response. See
 [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
